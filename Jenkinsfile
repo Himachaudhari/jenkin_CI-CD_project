@@ -9,7 +9,7 @@ pipeline {
 
     environment {
         GIT_REPO = 'https://github.com/Himachaudhari/jenkin_CI-CD_project.git'
-        DOCKER_IMAGE = 'himanshuchaudhari/java-cicd-app'
+        DOCKER_IMAGE = 'himanshuchaudhari02/java-cicd-app'
         EC2_HOST = 'ubuntu@13.204.238.92'
         SONARQUBE_SERVER = 'sonarqube-server'
     }
