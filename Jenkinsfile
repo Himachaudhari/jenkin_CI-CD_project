@@ -6,7 +6,6 @@ pipeline {
 
     tools {
         maven 'Maven-3'
-        
     }
 
     environment {
@@ -20,67 +19,37 @@ pipeline {
 
         stage('Git Clone') {
             steps {
-                git branch: 'main', url: "${GIT_REPO}"
+                git branch: 'prod', url: "${GIT_REPO}"
             }
         }
 
         stage('Maven Build') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                mavenBuild()
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv("${SONARQUBE_SERVER}") {
-                    sh """
-                        mvn sonar:sonar \
-                        -Dsonar.projectKey=java-demo \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_AUTH_TOKEN
-                    """
-                }
+                sonarScan("java-demo", SONARQUBE_SERVER)
             }
         }
 
         stage('Trivy Scan') {
             steps {
-                sh """
-                    docker build -t temp-scan .
-                    trivy image --exit-code 0 --severity HIGH,CRITICAL temp-scan
-                """
+                trivyScan()
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker-hub-cred',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh """
-                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
-                        docker tag ${DOCKER_IMAGE}:${BUILD_NUMBER} ${DOCKER_IMAGE}:latest
-                        docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                        docker push ${DOCKER_IMAGE}:latest
-                    """
-                }
+                dockerBuildPush(DOCKER_IMAGE)
             }
         }
 
         stage('Deploy to EC2') {
             steps {
-                sshagent(['ec2-deploy-key']) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${EC2_HOST} '
-                            docker pull ${DOCKER_IMAGE}:latest &&
-                            docker rm -f java-app || true &&
-                            docker run -d --name java-app -p 8080:8080 ${DOCKER_IMAGE}:latest
-                        '
-                    """
-                }
+                deployToEC2(EC2_HOST, DOCKER_IMAGE)
             }
         }
     }
